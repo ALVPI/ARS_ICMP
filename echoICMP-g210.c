@@ -35,21 +35,27 @@
 
 uint16_t checksumCalculation(void *data, int len) {
     uint16_t *buf = data;
-    uint32_t sum = 0;
+    uint32_t sum = 0; //Acumulator
 
-
+    //We go 2 by 2 adding the 2 bytes into the sum 
     for(int i=0; i<len/2; i++){
         sum += *buf;
         buf++;
     }
-
+    //if we have a non par length  we take that last byte and add it to sum with the cast 
     if (len == 1)
         sum += *(uint8_t *)buf;
 
+    //We add the carry 
     sum = (sum >> 16) + (sum & 0xFFFF);
     sum += (sum >> 16);
 
     return (uint16_t)(~sum);
+}
+
+double diff_time (const struct timeval end_time, const struct timeval initial_time)
+{
+    return ((end_time-> tv_sec - initial_time->tv_sec)*1000.0 )+ ((end_time->tv_usec- initial_time->tv_usec)/1000.0);
 }
 
 int main (int argc, char*argv[])
@@ -72,7 +78,8 @@ int main (int argc, char*argv[])
   struct sockaddr_in host, local_addr; //al que vamos a hacer el ping
   struct sockfd; //socket
   struct timeval t_start, t_end;
-  
+  double rtt = 0.0; //round trip time of the packet 
+  int recv_count=0; //number of recieved packets
   fd_set readfds;
   struct timeval timeout;
 
@@ -190,12 +197,24 @@ int main (int argc, char*argv[])
       close(sockfd);
       exit(EXIT_FAILURE);
     }
-
+    
     gettimeofday(&t_end, NULL);
+    rtt = diff_time(&t_end, &t_start);
+    total_rtt +=rtt;
+    if(rtt<min_rtt) min_rtt = rtt;
+    if(max_rtt<rtt) max_rtt = rtt;
+    recv_count ++;
+    printf("Echo Reply from %s: seq=%d TTL=%d RTT%.3f ms\n", inet_ntoa(host.sin_addr), seq, ip->ip_ttl, rtt);
   }
 
-  
-  
-  // FALTA CALCULAR EL RTT, CREAR EL ECHO REPLY Y COMPROBAR LA RESPUESTA
+  //We print the final stats
+  printf("--- %s estadisticas ---\n", argv[1]);
+  printf("%d packets transmitted %d recieved %d packet loss\n", 
+         PING_COUNT, recv_count , (PING_COUNT-recv_count*100)/100);
 
+  //we only print if we recieved something
+  if (recv_count!=0)
+  {
+    printf("rtt min/avg/max = %.3f/%.3f/%.3f ms\n",min_rtt, total_rtt/recv_count, max_rtt);
+  }
   return 0;
